@@ -4,7 +4,7 @@ chardet==3.0.4
 coreapi==2.3.3
 coreschema==0.0.4
 Django==3.0.8
-django-email-utils==0.1.1
+django-email-utils==1.0.0
 django-email-verification==0.0.5.post1
 django-filter==2.3.0
 django-rest-email-auth==2.1.0
