@@ -1,0 +1,73 @@
+Metadata-Version: 2.1
+Name: django-email-utils
+Version: 0.1.1
+Summary: Django utility for sending email messages.
+Home-page: https://github.com/cdriehuys/django-email-utils
+Author: Chathan Driehuys
+Author-email: chathan@driehuys.com
+License: MIT
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 1.11
+Classifier: Framework :: Django :: 2.0
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Requires-Dist: Django (>=1.10)
+
+##################
+django-email-utils
+##################
+
+Utility functions to ease Django's email sending process.
+
+
+************
+Installation
+************
+
+Install from PyPI::
+
+    pip install django-email-utils
+
+
+*****
+Usage
+*****
+
+Send emails using the ``send_email`` utility function::
+
+    from email_utils import send_email
+
+
+    send_email(
+        context={'foo': 'bar'},
+        from_email='no-reply@myproject.com',
+        recipient_list=['test@example.com'],
+        subject='My Templated Email',
+        template_name='myapp/template',
+    )
+
+
+*******
+License
+*******
+
+This project is licensed under the MIT License.
+
+
+*******
+Authors
+*******
+
+Chathan Driehuys (chathan@driehuys.com)
+
+

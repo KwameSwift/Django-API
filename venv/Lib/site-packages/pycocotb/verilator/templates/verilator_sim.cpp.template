@@ -1,0 +1,263 @@
+#include "pycocotb_sim.h"
+
+// hack to allow access to V{{top_name}} private methods
+#define private friend class {{top_name}}_wrap; private
+#include "V{{top_name}}.h"
+#undef private
+#include "V{{top_name}}__Syms.h"
+
+
+////////////////////////////////////////////// sim wrapper //////////////////////////////////////////////
+class {{top_name}}_wrap: public V{{top_name}} {
+	friend class V{{top_name}};
+public:
+    sim_step_t::push_type* __pause_sink;
+    bool __comb_update_triggered;
+    bool __restart_delta_step;
+
+    {{top_name}}_wrap(): V{{top_name}}("{{top_name}}"), __pause_sink(nullptr),
+            __comb_update_triggered(false), __restart_delta_step(false) {
+    }
+    {{top_name}}_wrap(const {{top_name}}_wrap &) = delete;
+    void eval() {
+        VL_DEBUG_IF(VL_DBG_MSGF("+++++TOP Evaluate VHandshakedFifo::eval\n"); );
+        V{{top_name}}__Syms* __restrict vlSymsp = this->__VlSymsp; // Setup global symbol table
+        V{{top_name}}* __restrict vlTOPp VL_ATTR_UNUSED = vlSymsp->TOPp;
+
+#ifdef VL_DEBUG
+        // Debug assertions
+        _eval_debug_assertions();
+#endif
+		try {
+	        // Initialize
+	        if (VL_UNLIKELY(!vlSymsp->__Vm_didInit)) _eval_initial_loop(vlSymsp);
+
+	        __comb_update_triggered = false;
+	        // Evaluate till stable
+	        int __VclockLoop = 0;
+	        QData __Vchange = 1;
+	        do {
+	            VL_DEBUG_IF(VL_DBG_MSGF("+ Clock loop\n"););
+	            vlSymsp->__Vm_activity = true;
+	            // [TODO]
+        		_eval_settle(vlSymsp);
+	            V{{top_name}}::_eval(vlSymsp);
+	            if (VL_UNLIKELY(++__VclockLoop > 100)) {
+	                // About to fail, so enable debug to see what's not settling.
+	                // Note you must run make with OPT=-DVL_DEBUG for debug prints.
+	                int __Vsaved_debug = Verilated::debug();
+	                Verilated::debug(1);
+	                __Vchange = _change_request(vlSymsp);
+	                Verilated::debug(__Vsaved_debug);
+	                VL_FATAL_MT(__FILE__,__LINE__,__FILE__,"Verilated model didn't converge");
+	            } else {
+	                __Vchange = _change_request(vlSymsp);
+	            }
+	            if (!__comb_update_triggered) {
+	                __comb_update_triggered = true;
+	                (*__pause_sink)({SIM_EV_COMB_UPDATE_DONE, nullptr});
+		        	if (__restart_delta_step) {
+			        	throw DeltaStepRestart();
+			        }
+	            }
+	        } while (VL_UNLIKELY(__Vchange));
+	        (*__pause_sink)({SIM_EV_END_OF_STEP, nullptr});
+		} catch (const DeltaStepRestart & e) {
+			__restart_delta_step = false;
+			// printf("delta step restarted\n");
+		}
+    }
+
+    virtual void onBeforeEdge(V{{top_name}}__Syms* __restrict vlSymsp, CData &clkSig) override {
+        VL_DEBUG_IF(VL_DBG_MSGF("+    Decorated{{top_name}}::onBeforeEdge\n"); );
+        if (!__comb_update_triggered) {
+            __comb_update_triggered = true;
+            (*__pause_sink)({SIM_EV_COMB_UPDATE_DONE, nullptr});
+	        if (__restart_delta_step) {
+	        	throw DeltaStepRestart();
+	        }
+        }
+
+        (*__pause_sink)({SIM_EV_BEFORE_EDGE, &clkSig});
+        if (__restart_delta_step) {
+        	throw DeltaStepRestart();
+        }
+    }
+    virtual ~{{top_name}}_wrap() {
+    }
+} VL_ATTR_ALIGNED(128);
+using DUT_t = {{top_name}}_wrap;
+
+///////////////////////////////////// PySim_t //////////////////////////////////////////////////
+using PySim_t = _PySim_t<DUT_t>;
+
+// this is wrapper arround PySimProxy constructor which construct proxy only if the DUT class
+// has the member corresponding to the singal (= the signal was not optimised out by Verilator)
+{% for _, signal_phy_name, _, _, _ in accessible_signals %}
+define_proxy_constructor({{signal_phy_name}});{% endfor %}
+
+static PyObject * PySim_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+    static char *kwlist[] = {nullptr};
+    if(!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist)) {
+        return nullptr;
+    }
+
+    PySim_t *self = (PySim_t *)type->tp_alloc(type, 0);
+    if (self != nullptr) {
+        self->COMB_UPDATE_DONE = SIM_EV_COMB_UPDATE_DONE;
+        self->BEFORE_EDGE      = SIM_EV_BEFORE_EDGE;
+        self->END_OF_STEP      = SIM_EV_END_OF_STEP;
+        self->signals = new std::vector<SignalProxyPtr_t>();
+        if (self->signals == nullptr) {
+            return nullptr;
+        }
+
+        self->event_triggering_signals = new std::unordered_set<SignalMemProxy_t*>();
+        if (self->event_triggering_signals == nullptr) {
+            return nullptr;
+        }
+
+        // Set debug level, 0 is off, 9 is highest presently used
+        Verilated::debug(0);
+
+        // Randomization reset policy
+        Verilated::randReset(2);
+
+        self->dut = new DUT_t();
+        if(!self->dut) {
+            PyErr_SetString(PyExc_AssertionError, "Can not create new instance of Verilator simulation");
+            return nullptr;
+        }
+        self->actual_sim_step = nullptr;
+        self->read_only_not_write_only = false;
+
+        self->io = PyObject_CallObject(reinterpret_cast<PyObject*>(&PySimIo_pytype), nullptr);
+        if (!self->io) {
+            PyErr_SetString(PyExc_AssertionError,
+                            "Can not create simulation io");
+            return nullptr;
+        }
+    {% for signal_name, signal_phy_name, read_only, is_signed, type_width in accessible_signals %}
+        {
+            std::vector<const char*> name = { {% for sn in signal_name %}"{{sn}}",{% endfor %} };
+            std::vector<size_t> type_width = { {% for tw in type_width %}{{tw}}, {% endfor %} };
+            if(construct_proxy_{{signal_phy_name}}<DUT_t>(name,
+                self->dut, type_width,
+                {{is_signed}}, &self->read_only_not_write_only, self->io, *self->signals,
+                *self->event_triggering_signals) < 0) {
+                    return nullptr;
+            }
+        }
+    {% endfor %}
+
+        self->time = 0;
+        // turn on tracing
+        self->tfp = nullptr;
+        self->trace_file_name = nullptr;
+
+        self->pending_event_list = PyList_New(0);
+        if (self->pending_event_list == nullptr) {
+            //(PySim_t *)type->tp_dealloc(self);
+            return nullptr;
+        }
+    }
+    return (PyObject *)self;
+}
+
+static PyMethodDef PySim_methods[] = {
+        {"eval", (PyCFunction)PySim_eval<DUT_t>, METH_NOARGS, "single simulation step"},
+        {"reset_eval", (PyCFunction)PySim_reset_eval<DUT_t>, METH_NOARGS, "reset evaluation"},
+        {"set_trace_file", (PyCFunction)PySim_set_trace_file<DUT_t>, METH_VARARGS,
+                "set file where data from signals should be stored\n"
+                "\n"
+                ":param file_name: name of file where trace should be stored (path of vcd file f.e.)\n"
+                ":param trace_depth: number of hyerarchy levels which should be trraced (-1 = all)\n"
+        },
+        {"set_write_only", (PyCFunction)PySim_set_write_only, METH_NOARGS,
+                "set simulation to write only state, should be called before entering to new evaluation step"},
+        {"finalize", (PyCFunction)PySim_finalize<DUT_t>, METH_NOARGS, "flush output and clean all pending actions"},
+        {nullptr}  /* Sentinel */
+};
+
+static PyTypeObject PySim_pytype = {
+    PyVarObject_HEAD_INIT(nullptr, 0)
+    "{{module_name}}",          /* tp_name */
+    sizeof(PySim_t),            /* tp_basicsize */
+    0,                          /* tp_itemsize */
+    (destructor)PySim_dealloc<DUT_t>,  /* tp_dealloc */
+    0,                          /* tp_print */
+    0,                          /* tp_getattr */
+    0,                          /* tp_setattr */
+    0,                          /* tp_reserved */
+    0,                          /* tp_repr */
+    0,                          /* tp_as_number */
+    0,                          /* tp_as_sequence */
+    0,                          /* tp_as_mapping */
+    0,                          /* tp_hash  */
+    0,                          /* tp_call */
+    0,                          /* tp_str */
+    0,                          /* tp_getattro */
+    0,                          /* tp_setattro */
+    0,                          /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT |
+        Py_TPFLAGS_BASETYPE,    /* tp_flags */
+    "RTL simulation wrapped in python c-extension", /* tp_doc */
+    0,                          /* tp_traverse */
+    0,                          /* tp_clear */
+    0,                          /* tp_richcompare */
+    0,                          /* tp_weaklistoffset */
+    0,                          /* tp_iter */
+    0,                          /* tp_iternext */
+    PySim_methods,              /* tp_methods */
+    PySim_members,              /* tp_members */
+    0,                          /* tp_getset */
+    0,                          /* tp_base */
+    0,                          /* tp_dict */
+    0,                          /* tp_descr_get */
+    0,                          /* tp_descr_set */
+    0,                          /* tp_dictoffset */
+    0,                          /* tp_init */
+    0,                          /* tp_alloc */
+    PySim_new,                  /* tp_new */
+};
+
+////////////////////////////////////  py module ////////////////////////////////////////
+static PyModuleDef PySim_module = {
+    PyModuleDef_HEAD_INIT,
+    "{{module_name}}",
+    "Generated module with simulation for {{top_name}}",
+    -1,
+    nullptr, nullptr, nullptr, nullptr,
+    nullptr
+};
+
+PyMODINIT_FUNC PyInit_{{module_name}}(void) {
+    if (PySimIo_pytype_prepare() < 0)
+        return nullptr;
+
+    if (PyType_Ready(&PySim_pytype) < 0)
+        return nullptr;
+
+    PyObject* m = PyModule_Create(&PySim_module);
+    if (!m)
+        return nullptr;
+
+    Py_INCREF(&PySim_pytype);
+    if (PyModule_AddObject(m, "{{module_name}}", (PyObject *)&PySim_pytype) < 0)
+        return nullptr;
+
+    Py_INCREF(&PySimIo_pytype);
+    if (PyModule_AddObject(m, "PySimIo", (PyObject *)&PySimIo_pytype) < 0)
+        return nullptr;
+
+    Py_INCREF(&SignalMemProxy_pytype);
+    if (PyModule_AddObject(m, "SignalMemProxy", (PyObject *)&SignalMemProxy_pytype) < 0)
+        return nullptr;
+
+    Py_INCREF(&SignalMemProxy_pytype);
+    if (PyModule_AddObject(m, "SignalArrayMemProxy", (PyObject *)&SignalArrayMemProxy_pytype) < 0)
+        return nullptr;
+
+    return m;
+}
+
