@@ -3,7 +3,7 @@ from . import serializers
 from .models import User
 from rest_framework import generics
 from rest_framework.response import Response
-from rest_framework import status 
+from rest_framework import status
 from django.core.mail import EmailMessage
 from django.contrib.sites.shortcuts import get_current_site
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -20,6 +20,7 @@ from django.utils.encoding import smart_bytes, smart_str, DjangoUnicodeDecodeErr
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 
+
 # Create your views here.
 
 
@@ -27,22 +28,22 @@ class UserRegistrationView(generics.GenericAPIView):
     serializer_class = serializers.UserRegistrationSerializer
 
     def post(self, request):
-        
+
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
             serializer.save()
-            user_data =serializer.data
+            user_data = serializer.data
             user = User.objects.get(email=user_data['email'])
 
             current_site = get_current_site(request).domain
             reverse_link = reverse('verify-email')
             token = RefreshToken.for_user(user).access_token
-            url = 'http://'+ current_site+reverse_link+'?token= '+ str(token)
+            url = 'http://' + current_site + reverse_link + '?token= ' + str(token)
 
             email_subject = 'Activate your account'
-            email_body = 'Hi '+ user.username +', \nPlease, kindly use the link below to activate your account \n'+ url
-            to_email = [request.data.get('email'),]
+            email_body = 'Hi ' + user.username + ', \nPlease, kindly use the link below to activate your account \n' + url
+            to_email = [request.data.get('email'), ]
 
             email = EmailMessage(subject=email_subject, body=email_body, to=to_email)
             email.send()
@@ -58,14 +59,11 @@ class UserRegistrationView(generics.GenericAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
 class EmailVerifyView(views.APIView):
-
-    serializer_class = serializers.EmailVerifySerializer 
+    serializer_class = serializers.EmailVerifySerializer
 
     token_param_config = openapi.Parameter('token', in_=openapi.IN_QUERY,
-                                              description='Description', type=openapi.TYPE_STRING)
+                                           description='Description', type=openapi.TYPE_STRING)
 
     @swagger_auto_schema(manual_parameters=[token_param_config])
     def get(self, request):
@@ -94,30 +92,29 @@ class LoginView(generics.GenericAPIView):
             user = authenticate(email=email, password=password)
 
             if not user:
-             raise AuthenticationFailed('Invalid user credentials, try again')
+                raise AuthenticationFailed('Invalid user credentials, try again')
             if not user.is_active:
                 raise AuthenticationFailed('Account disabled, contact admin')
             if not user.is_verified:
                 raise AuthenticationFailed('Email is not verified')
 
             return Response({
-            'email': user.email,
-            'username': user.username,
-            'tokens': user.tokens()
+                'email': user.email,
+                'username': user.username,
+                'tokens': user.tokens()
             }, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class RequestPasswordReset(generics.GenericAPIView):
     serializer_class = serializers.RequestPasswordSerializer
-    
+
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
-           email = request.data['email']
+            email = request.data['email']
 
         if User.objects.filter(email=email).exists():
             user = User.objects.get(email=email)
@@ -164,7 +161,6 @@ class PasswordTokenCheckView(generics.GenericAPIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class SetNewPasswordView(generics.GenericAPIView):
     serializer_class = serializers.SetNewPasswordSerializer
 
@@ -180,14 +176,13 @@ class SetNewPasswordView(generics.GenericAPIView):
                 user = User.objects.get(id=user_id)
 
                 if not PasswordResetTokenGenerator().check_token(user, token):
-                    
                     raise AuthenticationFailed('The reset link is invalid')
 
                 user.set_password(password)
                 user.save()
 
                 return Response({
-                'message': 'Password reset done successfully'
+                    'message': 'Password reset done successfully'
                 }, status=status.HTTP_200_OK)
 
             except Exception as e:

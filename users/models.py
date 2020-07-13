@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from rest_framework_simplejwt.tokens import RefreshToken
 
+
 # Create your models here.
 
 
@@ -16,8 +17,8 @@ class UserManager(BaseUserManager):
             raise TypeError('Username cannot be empty')
 
         user = self.model(
-            email = self.normalize_email(email),
-            username = username
+            email=self.normalize_email(email),
+            username=username
 
         )
 
@@ -25,28 +26,26 @@ class UserManager(BaseUserManager):
         user.save()
         return user
 
-    
-    def create_superuser(self,email, username, password=None):
+    def create_superuser(self, email, username, password=None):
         if email is None:
             raise TypeError('Email cannot be empty')
 
-        user =self.create_user(email, username, password)
+        user = self.create_user(email, username, password)
 
         is_staff = True
         is_superuser = True
 
         user.save()
-        
+
         return user
 
 
-
-class User(AbstractBaseUser,PermissionsMixin):
+class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=255, unique=True)
     email = models.EmailField(max_length=255, unique=True)
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
-    is_staff = models.BooleanField(default= False)
+    is_staff = models.BooleanField(default=False)
     created_at = models.DateField(auto_now_add=True)
     updated_at = models.DateField(auto_now=True)
 
@@ -61,10 +60,7 @@ class User(AbstractBaseUser,PermissionsMixin):
     def tokens(self):
         token = RefreshToken.for_user(self)
 
-        return{
+        return {
             'refresh': str(token),
-            'access':  str(token.access_token)
+            'access': str(token.access_token)
         }
-
-
-

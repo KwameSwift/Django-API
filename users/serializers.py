@@ -10,11 +10,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'password']
 
-
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
-    
-
 
 
 class EmailVerifySerializer(serializers.ModelSerializer):
@@ -38,7 +35,6 @@ class LoginSerializer(serializers.ModelSerializer):
         model = User
         fields = ['email', 'password', 'username', 'tokens']
 
-    
 
 class RequestPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=233)
@@ -52,7 +48,5 @@ class SetNewPasswordSerializer(serializers.Serializer):
     uidb64 = serializers.CharField(max_length=255)
     token = serializers.CharField(max_length=255)
 
-
     class Meta:
-            fields=['password','uidb64', 'token']
-
+        fields = ['password', 'uidb64', 'token']
