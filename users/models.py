@@ -1,3 +1,4 @@
+from PIL import Image
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -7,19 +8,14 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class UserManager(BaseUserManager):
-
     def create_user(self, email, username, password=None):
-
         if email is None:
             raise TypeError('Email cannot be empty')
-
         if username is None:
             raise TypeError('Username cannot be empty')
-
         user = self.model(
             email=self.normalize_email(email),
             username=username
-
         )
 
         user.set_password(password)
@@ -64,3 +60,24 @@ class User(AbstractBaseUser, PermissionsMixin):
             'refresh': str(token),
             'access': str(token.access_token)
         }
+
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    image = models.ImageField(default="default.png", upload_to='profile_pics')
+
+    def __str__(self):
+        return f'{self.user} Profile'
+
+    # overwriting the save method
+    def save(self, *args, **kwargs):
+        super(Profile, self).save(*args, **kwargs)
+
+        # make instance of image and pass the path to it
+        img = Image.open(self.image.path)
+
+        # resizing the image
+        if img.height > 300 or img.width > 300:
+            output_size = (300, 300)
+            img.thumbnail(output_size)
+            img.save(self.image.path)

@@ -125,8 +125,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+MEDIA_URL = '/media/'
+
 REST_FRAMEWORK = {
-    
+
     'DEFAULT_AUTHENTICATION_CLASSES': (
     
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -149,8 +154,8 @@ SWAGGER_SETTINGS = {
 
 EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.mailtrap.io'
-EMAIL_HOST_USER = 'eb236cba435e85'
-EMAIL_HOST_PASSWORD = '87d22974ec09ff'
+EMAIL_HOST_USER = 'b4df96e92eb607'
+EMAIL_HOST_PASSWORD = '5da36f59439f28'
 EMAIL_PORT = '2525'
 
 # EMAIL_USE_TLS = True

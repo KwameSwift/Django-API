@@ -1,7 +1,10 @@
 from django.shortcuts import render
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+
 from . import serializers
-from .models import User
-from rest_framework import generics
+from .models import User, Profile
+from rest_framework import generics, mixins
 from rest_framework.response import Response
 from rest_framework import status
 from django.core.mail import EmailMessage
@@ -24,11 +27,12 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 # Create your views here.
 
 
+# registering a user
 class UserRegistrationView(generics.GenericAPIView):
+    # get request
     serializer_class = serializers.UserRegistrationSerializer
 
     def post(self, request):
-
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
@@ -36,11 +40,13 @@ class UserRegistrationView(generics.GenericAPIView):
             user_data = serializer.data
             user = User.objects.get(email=user_data['email'])
 
+            # get the current domain, the reverse link and and reverse url
             current_site = get_current_site(request).domain
             reverse_link = reverse('verify-email')
             token = RefreshToken.for_user(user).access_token
             url = 'http://' + current_site + reverse_link + '?token= ' + str(token)
 
+            # set up email message for the newly creates user
             email_subject = 'Activate your account'
             email_body = 'Hi ' + user.username + ', \nPlease, kindly use the link below to activate your account \n' + url
             to_email = [request.data.get('email'), ]
@@ -51,16 +57,12 @@ class UserRegistrationView(generics.GenericAPIView):
                 'message': 'User registration successfully',
                 'data': user_data
             }, status=status.HTTP_201_CREATED)
-
-
-
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class EmailVerifyView(views.APIView):
     serializer_class = serializers.EmailVerifySerializer
-
     token_param_config = openapi.Parameter('token', in_=openapi.IN_QUERY, description='Description',
                                            type=openapi.TYPE_STRING)
 
@@ -189,3 +191,27 @@ class SetNewPasswordView(generics.GenericAPIView):
 
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileView(generics.GenericAPIView, mixins.UpdateModelMixin,
+              mixins.CreateModelMixin, mixins.DestroyModelMixin,
+              mixins.RetrieveModelMixin, mixins.ListModelMixin):
+    serializer_class = serializers.ProfileSerializer
+    queryset = Profile.objects.all()
+    lookup_field = 'id'
+    # authentication_classes = [TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
+
+    def get(self, request, id=None):
+        if id:
+            return self.retrieve(request)
+        return self.list(request)
+
+    def post(self, request, id):
+        return self.create(request, id)
+
+    def put(self, request, id):
+        return self.update(request, id)
+
+    def delete(self, request, id):
+        return self.destroy(request, id)

@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from . import views
-from .models import User
+from .models import User, Profile
 
 
+# Registration Serializer
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(max_length=255, min_length=8, write_only=True)
 
@@ -24,8 +25,8 @@ class EmailVerifySerializer(serializers.ModelSerializer):
 
 class LoginSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(max_length=255)
-    password = serializers.CharField(
-        max_length=56, min_length=8, write_only=True)
+    # password = serializers.CharField(
+    #     max_length=56, min_length=8, write_only=True)
     username = serializers.CharField(
         max_length=56, min_length=8, read_only=True)
     tokens = serializers.CharField(
@@ -50,3 +51,9 @@ class SetNewPasswordSerializer(serializers.Serializer):
 
     class Meta:
         fields = ['password', 'uidb64', 'token']
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = '__all__'
