@@ -152,7 +152,6 @@ SWAGGER_SETTINGS = {
     }
 }
 
-EMAIL_USE_TLS = True
 EMAIL_HOST = 'smtp.mailtrap.io'
 EMAIL_HOST_USER = 'b4df96e92eb607'
 EMAIL_HOST_PASSWORD = '5da36f59439f28'
